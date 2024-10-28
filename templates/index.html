@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lenguajes y automatas</title>
+    <style>
+        /* Estilos generales */
+        body {
+            font-family: 'Verdana', sans-serif;
+            background-image: url('/static/images/mapa.png'); /* Ruta al fondo de la página */
+            background-size: cover;
+            background-position: center;
+            margin: 0;
+            padding: 0;
+        }
+
+        h1 {
+            text-align: center;
+            color: #e94560;
+            font-size: 2.5em;
+            margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Arial', sans-serif; /* Cambio de fuente a Arial */
+            font-style: italic; /* Estilo cursiva */
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2); /* Sombra de texto */
+        }
+
+        .header-image {
+            width: 200px;
+            height: auto;
+            margin-left: 10px;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 30px auto;
+            background: #fff8f9;
+            padding: 25px;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(243, 240, 240, 0.3);
+            position: relative;
+            z-index: 1;
+            text-align: center; /* Centra contenido dentro de .container */
+        }
+
+        .selector {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 20px;
+            margin-bottom: 20px; /* Espacio entre .selector y el botón */
+        }
+
+        label {
+            font-size: 1.2em;
+            color: #000;
+        }
+
+        select {
+            padding: 12px;
+            border-radius: 8px;
+            border: 2px solid #e94560;
+            font-size: 1.1em;
+            width: 220px;
+        }
+
+        button {
+            padding: 12px 25px;
+            background-color: #e94560;
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 1.1em;
+            cursor: pointer;
+            transition: background-color 0.3s;
+        }
+
+        button:hover {
+            background-color: #c72c49;
+        }
+
+        #map {
+            height: 450px;
+            width: 100%;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.3);
+            margin-bottom: 25px;
+        }
+
+        .info {
+            margin-top: 30px;
+            font-size: 1.1em;
+            color: #e37a7a;
+            text-align: center;
+        }
+
+        .info p {
+            margin: 10px 0;
+        }
+
+        .info p span {
+            font-weight: bold;
+            color: #010000;
+        }
+
+        .footer {
+            text-align: center;
+            color: #000000;
+            margin-top: 30px;
+        }
+    </style>
+    <script>
+        let map, directionsService, directionsRenderer;
+
+        function initMap() {
+            map = new google.maps.Map(document.getElementById('map'), {
+                zoom: 5,
+                center: { lat: 23.6345, lng: -102.5528 }
+            });
+
+            directionsService = new google.maps.DirectionsService();
+            directionsRenderer = new google.maps.DirectionsRenderer();
+            directionsRenderer.setMap(map);
+        }
+
+        function trazarRuta(coordenadasRuta, nodosIntermedios, distancia) {
+            const waypoints = coordenadasRuta.slice(1, -1).map(coord => ({
+                location: { lat: coord[0], lng: coord[1] },
+                stopover: true
+            }));
+
+            const origen = coordenadasRuta[0];
+            const destino = coordenadasRuta[coordenadasRuta.length - 1];
+
+            const request = {
+                origin: { lat: origen[0], lng: origen[1] },
+                destination: { lat: destino[0], lng: destino[1] },
+                waypoints: waypoints,
+                travelMode: google.maps.TravelMode.DRIVING
+            };
+
+            directionsService.route(request, (result, status) => {
+                if (status === google.maps.DirectionsStatus.OK) {
+                    directionsRenderer.setDirections(result);
+
+                    let totalDistance = 0;
+                    result.routes[0].legs.forEach(leg => {
+                        totalDistance += leg.distance.value;
+                    });
+                    const distanceInKm = (totalDistance / 1000).toFixed(2);
+
+                    mostrarInfoRuta(nodosIntermedios, distanceInKm);
+                } else {
+                    alert('Error al obtener la ruta: ' + status);
+                }
+            });
+        }
+
+        function mostrarInfoRuta(nodosIntermedios, distancia) {
+            const existingInfoDiv = document.querySelector('.info');
+            if (existingInfoDiv) {
+                existingInfoDiv.remove();
+            }
+
+            const infoDiv = document.createElement('div');
+            infoDiv.classList.add('info');
+
+            const infoText = `<p>Distancia total: <span>${distancia}</span> km</p>`;
+                             
+
+            infoDiv.innerHTML = infoText;
+            document.getElementById('map').insertAdjacentElement('afterend', infoDiv);
+        }
+
+        function obtenerRuta() {
+            const ciudad_inicio = document.getElementById('ciudad_inicio').value;
+            const ciudad_final = document.getElementById('ciudad_final').value;
+
+            fetch('/get_routes', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ start: ciudad_inicio, end: ciudad_final })
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    alert(data.error);
+                } else {
+                    trazarRuta(data.coordenadas_ruta, data.nodos_intermedios_encontrados, data.distancia);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('Hubo un error al obtener la ruta.');
+            });
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>Calcula tu ruta <img src="/static/images/avion.png" alt="Avión" class="header-image"></h1>
+        <div class="selector">
+            <div style="display: flex; gap: 20px; align-items: center;">
+                <label for="ciudad_inicio" style="color: #000;">Punto de salida:</label>
+                <select id="ciudad_inicio">
+                    {% for ciudad in ciudades %}
+                        <option value="{{ ciudad }}">{{ ciudad }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+            <div style="display: flex; gap: 20px; align-items: center;">
+                <label for="ciudad_final" style="color: #000;">Punto de llegada:</label>
+                <select id="ciudad_final">
+                    {% for ciudad in ciudades %}
+                        <option value="{{ ciudad }}">{{ ciudad }}</option>
+                    {% endfor %}
+                </select>
+            </div>
+        </div>
+        <div id="map"></div>
+        <div class="info"></div>
+        <button onclick="obtenerRuta()" style="margin-top: 20px;">Obtener ruta</button>
+    </div>
+    <div class="footer">
+        <p>© ASTRIT LARIZA GARCIA CASTILLO</p>
+    </div>
+
+   <!-- Carga la API de Google Maps con tu clave API -->
+   <script src="https://maps.googleapis.com/maps/api/js?key=AIzaSyATseXRXJunPtS9HPA9RtoKSLbHJpRXqR8&callback=initMap" async defer></script>
+</body>
+</html>
+</body>
+</html>
